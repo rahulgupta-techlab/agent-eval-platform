@@ -1,0 +1,130 @@
+# Questions answered from the shop database alone.
+
+- id: sql-001
+  category: sql
+  difficulty: easy
+  prompt: How many customers are from Germany?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT COUNT(*) FROM customers WHERE country = 'Germany'"}
+  expected_answer: {type: numeric, value: 3}
+
+- id: sql-002
+  category: sql
+  difficulty: easy
+  prompt: How many orders have been placed in total?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT COUNT(*) FROM orders"}
+  expected_answer: {type: numeric, value: 20}
+
+- id: sql-003
+  category: sql
+  difficulty: easy
+  prompt: What does the Hiking Boots Pro cost?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT price FROM products WHERE name = 'Hiking Boots Pro'"}
+  expected_answer: {type: numeric, value: 189.0}
+
+- id: sql-004
+  category: sql
+  difficulty: easy
+  prompt: How many orders were cancelled?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT COUNT(*) FROM orders WHERE status = 'cancelled'"}
+  expected_answer: {type: numeric, value: 2}
+
+- id: sql-005
+  category: sql
+  difficulty: medium
+  prompt: What is the total value of order 8 in EUR?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT ROUND(SUM(p.price * oi.quantity), 2) FROM order_items oi
+          JOIN products p ON p.id = oi.product_id WHERE oi.order_id = 8
+  expected_answer: {type: numeric, value: 567.0}
+
+- id: sql-006
+  category: sql
+  difficulty: medium
+  prompt: How much revenue in EUR came from delivered orders?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT ROUND(SUM(p.price * oi.quantity), 2) FROM orders o
+          JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id
+          WHERE o.status = 'delivered'
+  expected_answer: {type: numeric, value: 2107.1}
+
+- id: sql-007
+  category: sql
+  difficulty: medium
+  prompt: Which product has sold the most units across all orders?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT p.name, SUM(oi.quantity) AS units FROM order_items oi
+          JOIN products p ON p.id = oi.product_id GROUP BY p.id ORDER BY units DESC LIMIT 1
+  expected_answer: {type: contains, values: [Headlamp 400]}
+
+- id: sql-008
+  category: sql
+  difficulty: medium
+  prompt: Which customer has spent the most on delivered orders?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT c.name, SUM(p.price * oi.quantity) AS spent FROM customers c
+          JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id
+          JOIN products p ON p.id = oi.product_id WHERE o.status = 'delivered'
+          GROUP BY c.id ORDER BY spent DESC LIMIT 1
+  expected_answer: {type: contains, values: [James Carter]}
+
+- id: sql-009
+  category: sql
+  difficulty: medium
+  prompt: What is the average price of products in the gear category, rounded to two decimals?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT ROUND(AVG(price), 2) FROM products WHERE category = 'gear'"}
+  expected_answer: {type: numeric, value: 162.33}
+
+- id: sql-010
+  category: sql
+  difficulty: medium
+  prompt: Customers from which country have placed the most orders?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT c.country, COUNT(o.id) AS n FROM customers c
+          JOIN orders o ON o.customer_id = c.id GROUP BY c.country ORDER BY n DESC LIMIT 1
+  expected_answer: {type: contains, values: [Germany]}
+
+- id: sql-011
+  category: sql
+  difficulty: hard
+  prompt: Which customers have returned an order?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT DISTINCT c.name FROM customers c JOIN orders o ON o.customer_id = c.id
+          WHERE o.status = 'returned'
+  expected_answer: {type: contains, values: [Anna Schmidt, Sofia Rossi]}
+
+- id: sql-012
+  category: sql
+  difficulty: medium
+  prompt: How many orders were placed in October 2025?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT COUNT(*) FROM orders WHERE order_date LIKE '2025-10-%'"}
+  expected_answer: {type: numeric, value: 6}

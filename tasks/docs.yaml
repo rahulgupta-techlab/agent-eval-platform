@@ -1,0 +1,89 @@
+# Questions answered from the policy documents alone.
+
+- id: docs-001
+  category: docs
+  difficulty: easy
+  prompt: How long do I have to return a rain jacket?
+  expected_calls:
+    - tool: search_docs
+      args: {query: return window days}
+    - tool: read_doc
+      args: {doc_id: returns}
+  expected_answer: {type: contains, values: [[30 days, thirty days]]}
+
+- id: docs-002
+  category: docs
+  difficulty: easy
+  prompt: How long is the return window for shoes?
+  expected_calls:
+    - tool: search_docs
+      args: {query: footwear return window}
+    - tool: read_doc
+      args: {doc_id: returns}
+  expected_answer: {type: contains, values: [[60 days, sixty days]]}
+
+- id: docs-003
+  category: docs
+  difficulty: easy
+  prompt: Above what order value is standard shipping free?
+  expected_calls:
+    - tool: search_docs
+      args: {query: free standard shipping}
+    - tool: read_doc
+      args: {doc_id: shipping}
+  expected_answer: {type: contains, values: ["75"]}
+
+- id: docs-004
+  category: docs
+  difficulty: easy
+  prompt: How long does express shipping take?
+  expected_calls:
+    - tool: search_docs
+      args: {query: express shipping}
+    - tool: read_doc
+      args: {doc_id: shipping}
+  expected_answer: {type: contains, values: [[1-2 business days, 1 to 2 business days, one to two business days]]}
+
+- id: docs-005
+  category: docs
+  difficulty: medium
+  prompt: How long is the warranty on tent poles?
+  expected_calls:
+    - tool: search_docs
+      args: {query: tent poles warranty}
+    - tool: read_doc
+      args: {doc_id: warranty}
+  expected_answer: {type: contains, values: [[5-year, 5 year, five-year, five year]]}
+
+- id: docs-006
+  category: docs
+  difficulty: medium
+  prompt: How many loyalty points do I need to reach the Silver tier?
+  expected_calls:
+    - tool: search_docs
+      args: {query: silver tier points}
+    - tool: read_doc
+      args: {doc_id: loyalty}
+  expected_answer: {type: contains, values: ["500"]}
+
+- id: docs-007
+  category: docs
+  difficulty: medium
+  prompt: When is customer support available on Saturdays?
+  expected_calls:
+    - tool: search_docs
+      args: {query: support saturday}
+    - tool: read_doc
+      args: {doc_id: support}
+  expected_answer: {type: contains, values: ["10:00", "14:00"]}
+
+- id: docs-008
+  category: docs
+  difficulty: hard
+  prompt: If I order to the UK, who pays any customs duties?
+  expected_calls:
+    - tool: search_docs
+      args: {query: customs duties united kingdom}
+    - tool: read_doc
+      args: {doc_id: shipping}
+  expected_answer: {type: contains, values: [recipient]}

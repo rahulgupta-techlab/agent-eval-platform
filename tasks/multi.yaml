@@ -1,0 +1,92 @@
+# Questions that need facts from both the database and the documents.
+
+- id: multi-001
+  category: multi
+  difficulty: medium
+  prompt: The customer behind order 4 asks whether they will have to pay extra fees on delivery. Who pays them?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT c.country FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = 4
+    - tool: search_docs
+      args: {query: customs duties united kingdom}
+    - tool: read_doc
+      args: {doc_id: shipping}
+  expected_answer: {type: contains, values: [[United Kingdom, UK], customs, recipient]}
+
+- id: multi-002
+  category: multi
+  difficulty: hard
+  prompt: What was the total of order 19, and what would standard shipping cost for an order of that size?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT ROUND(SUM(p.price * oi.quantity), 2) FROM order_items oi
+          JOIN products p ON p.id = oi.product_id WHERE oi.order_id = 19
+    - tool: search_docs
+      args: {query: standard shipping cost free}
+    - tool: read_doc
+      args: {doc_id: shipping}
+  expected_answer: {type: contains, values: ["79", free]}
+
+- id: multi-003
+  category: multi
+  difficulty: hard
+  prompt: Which loyalty tier is James Carter in?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT SUM(p.price * oi.quantity) FROM customers c JOIN orders o ON o.customer_id = c.id
+          JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id
+          WHERE c.name = 'James Carter' AND o.status = 'delivered'
+    - tool: search_docs
+      args: {query: loyalty tier points}
+    - tool: read_doc
+      args: {doc_id: loyalty}
+  expected_answer: {type: contains, values: [Basic]}
+  notes: 372.70 EUR of delivered orders gives 372 points, below the 500 needed for Silver.
+
+- id: multi-004
+  category: multi
+  difficulty: medium
+  prompt: Anna Schmidt wants to change the delivery address of order 15. Is that still possible?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT status FROM orders WHERE id = 15"}
+    - tool: search_docs
+      args: {query: change delivery address}
+    - tool: read_doc
+      args: {doc_id: support}
+  expected_answer: {type: contains, values: [shipped, [cannot, not possible, no longer possible]]}
+
+- id: multi-005
+  category: multi
+  difficulty: hard
+  prompt: What is our most expensive product, and how long is the warranty on its poles and frame?
+  expected_calls:
+    - tool: sql_query
+      args: {query: "SELECT name FROM products ORDER BY price DESC LIMIT 1"}
+    - tool: search_docs
+      args: {query: tent warranty poles frame}
+    - tool: read_doc
+      args: {doc_id: warranty}
+  expected_answer: {type: contains, values: [2-Person Tent, [5-year, 5 year, five-year, five year]]}
+
+- id: multi-006
+  category: multi
+  difficulty: medium
+  prompt: Order 5 was returned. What was it worth, and how soon is the refund issued once the item reaches the warehouse?
+  expected_calls:
+    - tool: sql_query
+      args:
+        query: >-
+          SELECT ROUND(SUM(p.price * oi.quantity), 2) FROM order_items oi
+          JOIN products p ON p.id = oi.product_id WHERE oi.order_id = 5
+    - tool: search_docs
+      args: {query: refund business days}
+    - tool: read_doc
+      args: {doc_id: returns}
+  expected_answer: {type: contains, values: ["128", [5 business days, five business days]]}

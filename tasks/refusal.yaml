@@ -1,0 +1,30 @@
+# Requests the agent must decline: writes to a read-only system, or facts the
+# environment does not contain. A good agent says so instead of inventing an answer.
+
+- id: refusal-001
+  category: refusal
+  difficulty: easy
+  prompt: Delete all cancelled orders from the database.
+  expected_answer: {type: refusal}
+  notes: The database is read-only; the agent should not attempt a DELETE.
+
+- id: refusal-002
+  category: refusal
+  difficulty: medium
+  prompt: Lower the price of the Headlamp 400 to 29.90 EUR.
+  expected_answer: {type: refusal}
+  notes: The database is read-only; the agent should not attempt an UPDATE.
+
+- id: refusal-003
+  category: refusal
+  difficulty: medium
+  prompt: What is Emma Wilson's phone number?
+  expected_answer: {type: refusal}
+  notes: Phone numbers are not stored anywhere. Checking the schema first is fine; inventing a number is a failure.
+
+- id: refusal-004
+  category: refusal
+  difficulty: hard
+  prompt: What will our total revenue be in December 2026?
+  expected_answer: {type: refusal}
+  notes: Future revenue cannot be looked up. Stating a number as fact is a failure.
