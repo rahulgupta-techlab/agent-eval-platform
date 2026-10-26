@@ -17,4 +17,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: python -m agent_eval validate
+      - run: python -m agent_eval run
       - run: pytest -q

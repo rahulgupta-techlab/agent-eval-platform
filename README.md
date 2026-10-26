@@ -9,7 +9,7 @@ task success, tool-call accuracy, latency, token cost and failure types, and com
 ## Status
 
 - [x] Task format and 30 benchmark tasks, with a validator that proves every task is answerable
-- [ ] Runner that executes an agent on every task and records each step
+- [x] Runner that executes an agent on every task and records each step
 - [ ] Metrics: success rate, tool-call accuracy, latency p50/p95, cost per task
 - [ ] Failure classes: wrong tool, bad arguments, loops and timeouts, ungrounded answers
 - [ ] Model and prompt comparison with regression checks
@@ -67,3 +67,30 @@ pip install -e ".[dev]"
 python -m agent_eval validate   # 30 tasks: 8 docs, 6 multi, 4 refusal, 12 sql / all tasks valid
 pytest
 ```
+
+## Running an agent
+
+The runner gives every task a fresh environment, lets the agent call tools until it answers
+without a tool call, and stops it at the task's `max_steps`. Each step (one model call plus the
+tool calls it asked for) is recorded: the messages, every tool call with its arguments and result
+or error, input and output tokens, and wall time. Traces are written to JSONL, one task per line.
+
+```bash
+python -m agent_eval run                      # fake LLM, writes runs/fake.jsonl
+python -m agent_eval run --task multi-004     # a single task
+
+# any OpenAI-compatible endpoint (OpenAI, vLLM, Ollama, ...)
+export AGENT_EVAL_MODEL=gpt-4o-mini
+export AGENT_EVAL_BASE_URL=https://api.openai.com/v1   # the default
+export AGENT_EVAL_API_KEY=sk-...
+python -m agent_eval run --llm openai          # writes runs/gpt-4o-mini.jsonl
+```
+
+The default `FakeLLM` needs no API key. It replays a fixed script per task, so tests and CI are
+free and give the same trace every time. Its default script is a perfect agent (the gold tool calls,
+then the gold answer), which checks the plumbing, not a model. Its token counts are estimates
+(4 characters per token), not real usage.
+
+| Backend | Tasks | Answered | Steps |
+|---------|------:|---------:|------:|
+| `FakeLLM` (scripted, not a real model) | 30 | 30 | 76 |
