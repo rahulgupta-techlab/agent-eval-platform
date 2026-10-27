@@ -1,0 +1,7 @@
+# USD per million tokens, keyed by the agent name in the trace (the model name for
+# OpenAI-compatible endpoints). Models missing here are scored without a cost.
+# Prices change: check the provider's pricing page before quoting costs.
+
+fake: {input_per_mtok: 0, output_per_mtok: 0}
+gpt-4o-mini: {input_per_mtok: 0.15, output_per_mtok: 0.60}
+gpt-4o: {input_per_mtok: 2.50, output_per_mtok: 10.00}

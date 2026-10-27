@@ -10,7 +10,7 @@ task success, tool-call accuracy, latency, token cost and failure types, and com
 
 - [x] Task format and 30 benchmark tasks, with a validator that proves every task is answerable
 - [x] Runner that executes an agent on every task and records each step
-- [ ] Metrics: success rate, tool-call accuracy, latency p50/p95, cost per task
+- [x] Metrics: success rate, tool-call accuracy, latency p50/p95, cost per task
 - [ ] Failure classes: wrong tool, bad arguments, loops and timeouts, ungrounded answers
 - [ ] Model and prompt comparison with regression checks
 - [ ] FastAPI service and HTML report
@@ -94,3 +94,33 @@ then the gold answer), which checks the plumbing, not a model. Its token counts 
 | Backend | Tasks | Answered | Steps |
 |---------|------:|---------:|------:|
 | `FakeLLM` (scripted, not a real model) | 30 | 30 | 76 |
+
+## Metrics
+
+`run` scores the trace as soon as it finishes; `score` re-scores a saved one.
+
+```bash
+python -m agent_eval score runs/fake.jsonl --json runs/fake.metrics.json
+```
+
+| Metric | How it is measured |
+|--------|--------------------|
+| Task success | The final answer is checked with the task's `ExpectedAnswer` (`contains`, `numeric`, `refusal`). Hitting `max_steps` is a failure, and so is a refusal after the agent tried to write. |
+| Tool-call accuracy | Share of expected calls the agent made with the right tool, and with the right tool and arguments. Arguments are compared by effect, not text: `sql_query` must return the same rows (in any order), `search_docs` must surface the document the task reads next, `read_doc` must name the same document. |
+| Steps | Model calls per task. |
+| Latency | Wall time per task, p50 and p95 across tasks. |
+| Tokens and cost | Input and output tokens per task, priced with [config/prices.yaml](config/prices.yaml) (USD per million tokens, keyed by model name). Models missing from the table get no cost. |
+
+Measured with the scripted `FakeLLM` (a perfect agent that replays the gold calls, not a real
+model, so this only checks that the scoring agrees with the benchmark; its tokens are estimates):
+
+| Backend | Success | Right tool | Right tool and args | Steps per task | Tokens per task in/out |
+|---------|--------:|-----------:|--------------------:|---------------:|-----------------------:|
+| `FakeLLM` (scripted, not a real model) | 30/30 | 100% | 100% | 2.53 | 1208/98 (estimated) |
+
+Real model results: run `python -m agent_eval run --llm openai` with the environment variables
+above and add the numbers here.
+
+| Model | Success | Right tool | Right tool and args | Latency p50/p95 | Cost per task |
+|-------|--------:|-----------:|--------------------:|----------------:|--------------:|
+| | | | | | |

@@ -77,6 +77,10 @@ class TaskTrace(BaseModel):
     steps: list[StepTrace] = Field(default_factory=list)
 
     @property
+    def tool_calls(self) -> list[ToolCallRecord]:
+        return [c for s in self.steps for c in s.tool_calls]
+
+    @property
     def input_tokens(self) -> int:
         return sum(s.input_tokens for s in self.steps)
 

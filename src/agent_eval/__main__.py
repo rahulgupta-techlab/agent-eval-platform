@@ -2,6 +2,7 @@
 
     python -m agent_eval validate [tasks_dir]
     python -m agent_eval run [tasks_dir] [--llm fake|openai] [--task ID ...] [--out FILE]
+    python -m agent_eval score TRACE [--tasks DIR] [--prices FILE] [--json FILE]
 """
 
 from __future__ import annotations
@@ -12,7 +13,8 @@ from collections import Counter
 from pathlib import Path
 
 from agent_eval.llm import FakeLLM, LLMError, OpenAIClient
-from agent_eval.runner import LLMAgent, run
+from agent_eval.metrics import PRICES_FILE, load_prices, score_run, summary
+from agent_eval.runner import LLMAgent, load_traces, run
 from agent_eval.tasks import load_tasks
 from agent_eval.validate import validate
 
@@ -48,12 +50,25 @@ def cmd_run(args: argparse.Namespace) -> int:
     traces = run(LLMAgent(llm), tasks, out=out)
     statuses = Counter(t.status for t in traces)
     print(f"{len(traces)} tasks: " + ", ".join(f"{n} {s}" for s, n in sorted(statuses.items())))
-    print(f"steps: {sum(len(t.steps) for t in traces)}")
-    note = " (estimated, fake LLM)" if args.llm == "fake" else ""
-    print(f"tokens in/out: {sum(t.input_tokens for t in traces)}/{sum(t.output_tokens for t in traces)}{note}")
-    print(f"wall time: {sum(t.wall_time_s for t in traces):.2f}s")
+    print(summary(score_run(tasks, traces, load_prices())))
+    if args.llm == "fake":
+        print("note: fake LLM, so token counts are estimates and the results say nothing about a model")
     print(f"trace: {out}")
     return 1 if statuses["llm_error"] else 0
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    try:
+        metrics = score_run(load_tasks(args.tasks), load_traces(args.trace), load_prices(args.prices))
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    print(summary(metrics))
+    if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(metrics.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        print(f"metrics: {args.json}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -70,6 +85,13 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--task", action="append", metavar="ID", help="only run this task (repeatable)")
     r.add_argument("--out", type=Path, help="trace file (default: runs/<model>.jsonl)")
     r.set_defaults(func=cmd_run)
+
+    s = sub.add_parser("score", help="score a saved trace: success, tool-call accuracy, latency, cost")
+    s.add_argument("trace", type=Path)
+    s.add_argument("--tasks", type=Path, default=Path("tasks"))
+    s.add_argument("--prices", type=Path, default=PRICES_FILE, help="price table (USD per 1M tokens)")
+    s.add_argument("--json", type=Path, help="also write per-task and run metrics as JSON")
+    s.set_defaults(func=cmd_score)
 
     args = parser.parse_args(argv)
     return args.func(args)
