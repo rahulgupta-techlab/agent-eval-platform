@@ -4,14 +4,14 @@ A benchmark harness that tests whether tool-using AI agents work reliably, not j
 
 Agents get a realistic environment (a fictional outdoor-gear shop with a SQL database and policy
 documents) and a set of tasks with known correct tool calls and answers. The harness will measure
-task success, tool-call accuracy, latency, token cost and failure types, and compare models and prompts.
+task success, tool-call accuracy, latency, token cost and failure classes, and compare models and prompts.
 
 ## Status
 
 - [x] Task format and 30 benchmark tasks, with a validator that proves every task is answerable
 - [x] Runner that executes an agent on every task and records each step
 - [x] Metrics: success rate, tool-call accuracy, latency p50/p95, cost per task
-- [ ] Failure classes: wrong tool, bad arguments, loops and timeouts, ungrounded answers
+- [x] Failure classes: wrong tool, bad arguments, loops and timeouts, ungrounded answers
 - [ ] Model and prompt comparison with regression checks
 - [ ] FastAPI service and HTML report
 - [ ] Docker Compose and CI
@@ -124,3 +124,27 @@ above and add the numbers here.
 | Model | Success | Right tool | Right tool and args | Latency p50/p95 | Cost per task |
 |-------|--------:|-----------:|--------------------:|----------------:|--------------:|
 | | | | | | |
+
+## Failure classes
+
+A success rate says how often an agent fails, not why. Every failed task gets exactly one primary
+failure class ([failures.py](src/agent_eval/failures.py)). The checks run in this order and the
+first that applies wins, so the class names the earliest point where the run went wrong rather
+than every symptom that followed (a refusal after a SQL error is blamed on the error).
+
+| Class | The task failed because |
+|-------|-------------------------|
+| `llm_error` | the model could not be reached (kept apart: not the agent's fault) |
+| `loop_or_max_steps` | the agent hit `max_steps`, or made the same tool call (same arguments) 3 times |
+| `should_have_refused` | a refusal task where the agent answered anyway, or tried to write |
+| `wrongly_refused` | the agent declined a question the data answers, with no tool error or wrong call to blame |
+| `tool_error_not_recovered` | a tool call failed and no later call to that tool succeeded |
+| `wrong_tool` | an expected call was never made with the right tool (including tools that do not exist) |
+| `bad_arguments` | the right tool, but never with the right effect (same comparison as tool-call accuracy) |
+| `ungrounded_answer` | the answer is not supported by the tool outputs: no tool was called (checked right after `wrongly_refused`), or every call was right (so the outputs held the gold answer, as `validate` proves) and the answer still disagrees |
+
+`run` and `score` print the count per class and the class of each failed task, and `--json` writes
+them (`failures` per run, `failure` per task). With the scripted perfect `FakeLLM` there are no
+failures, so that run only shows the plumbing; the tests in
+[tests/test_failures.py](tests/test_failures.py) script one failing agent per class. Real-model
+failure counts come from the same `run --llm openai` command as the metrics above.

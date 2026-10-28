@@ -1,8 +1,9 @@
 """Scores traces against the tasks they ran on.
 
 Per task: success (the final answer checked with the task's ExpectedAnswer), tool-call
-accuracy, steps, wall time, tokens and cost. Per run: success rate overall and by
-category, tool-call accuracy, latency p50/p95, and tokens and cost per task.
+accuracy, steps, wall time, tokens and cost, and for a failed task its failure class
+(see failures.py). Per run: success rate overall and by category, tool-call accuracy,
+latency p50/p95, tokens and cost per task, and failed tasks counted by class.
 
 Tool-call accuracy has two levels. A call has the right tool if the agent made a call to
 that tool; it also has the right arguments if the call had the same effect as the
@@ -16,12 +17,14 @@ from __future__ import annotations
 
 import math
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel
 
+from agent_eval.failures import FailureClass, classify
 from agent_eval.runner import TaskTrace, ToolCallRecord
 from agent_eval.tasks import AnswerType, ExpectedAnswer, ExpectedCall, Task
 from agent_eval.tools import Environment, ToolError
@@ -136,16 +139,19 @@ class TaskScore(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float | None  # None if the model has no entry in the price table
+    failure: FailureClass | None  # primary failure class; None if the task succeeded
 
 
 def score_task(task: Task, trace: TaskTrace, price: Price | None = None) -> TaskScore:
     calls = trace.tool_calls
     right_tool, right_args = match_calls(task.expected_calls, calls)
+    success = task_succeeded(task, trace)
+    refused = trace.answer is not None and REFUSAL.search(trace.answer) is not None
     return TaskScore(
         task_id=task.id,
         category=task.category.value,
         status=trace.status,
-        success=task_succeeded(task, trace),
+        success=success,
         expected_calls=len(task.expected_calls),
         calls_made=len(calls),
         right_tool=right_tool,
@@ -155,6 +161,7 @@ def score_task(task: Task, trace: TaskTrace, price: Price | None = None) -> Task
         input_tokens=trace.input_tokens,
         output_tokens=trace.output_tokens,
         cost_usd=cost_usd(trace.input_tokens, trace.output_tokens, price),
+        failure=None if success else classify(task, trace, right_tool, right_args, refused),
     )
 
 
@@ -183,6 +190,7 @@ class RunMetrics(BaseModel):
     mean_output_tokens: float
     cost_per_task_usd: float | None
     total_cost_usd: float | None
+    failures: dict[str, int]  # failed tasks per primary failure class
     per_task: list[TaskScore]
 
 
@@ -225,6 +233,7 @@ def score_run(tasks: list[Task], traces: list[TaskTrace], prices: dict[str, Pric
         mean_output_tokens=sum(s.output_tokens for s in scores) / n,
         cost_per_task_usd=None if total_cost is None else total_cost / n,
         total_cost_usd=total_cost,
+        failures=dict(sorted(Counter(s.failure.value for s in scores if s.failure).items())),
         per_task=scores,
     )
 
@@ -248,7 +257,7 @@ def summary(m: RunMetrics) -> str:
         f"tokens per task in/out: {m.mean_input_tokens:.0f}/{m.mean_output_tokens:.0f}",
         f"cost per task: {usd(m.cost_per_task_usd)}, total {usd(m.total_cost_usd)}",
     ]
-    failed = [s.task_id for s in m.per_task if not s.success]
-    if failed:
-        lines.append("failed: " + ", ".join(failed))
+    if m.failures:
+        lines.append("failure classes: " + ", ".join(f"{c} {n}" for c, n in m.failures.items()))
+        lines += [f"  {s.task_id}: {s.failure.value}" for s in m.per_task if s.failure]
     return "\n".join(lines)
