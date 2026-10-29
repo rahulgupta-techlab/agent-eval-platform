@@ -79,12 +79,18 @@ class FakeLLM:
         self.name = name
 
     @classmethod
-    def from_tasks(cls, tasks: list[Task], name: str = "fake") -> FakeLLM:
-        """A perfect agent: makes each task's expected calls, then states the gold answer."""
+    def from_tasks(cls, tasks: list[Task], name: str = "fake", give_up_every: int = 0) -> FakeLLM:
+        """A perfect agent: makes each task's expected calls, then states the gold answer.
+
+        With `give_up_every=n`, every n-th task (1-based, in the order given) is scripted to
+        answer at once without calling a tool, which gives a deterministically worse agent.
+        """
         scripts = {
-            t.prompt: [Turn(calls=[(c.tool, c.args)]) for c in t.expected_calls]
+            t.prompt: [Turn(content="I could not find the answer.")]
+            if give_up_every and i % give_up_every == 0
+            else [Turn(calls=[(c.tool, c.args)]) for c in t.expected_calls]
             + [Turn(content=gold_answer(t.expected_answer))]
-            for t in tasks
+            for i, t in enumerate(tasks, start=1)
         }
         return cls(scripts, name=name)
 
@@ -131,9 +137,12 @@ class OpenAIClient:
         self.timeout = timeout
 
     @classmethod
-    def from_env(cls) -> OpenAIClient:
-        """Configure from AGENT_EVAL_MODEL, AGENT_EVAL_BASE_URL and AGENT_EVAL_API_KEY."""
-        model = os.environ.get("AGENT_EVAL_MODEL")
+    def from_env(cls, model: str | None = None) -> OpenAIClient:
+        """Configure from AGENT_EVAL_MODEL, AGENT_EVAL_BASE_URL and AGENT_EVAL_API_KEY.
+
+        `model`, if given, takes the place of AGENT_EVAL_MODEL.
+        """
+        model = model or os.environ.get("AGENT_EVAL_MODEL")
         if not model:
             raise LLMError("set AGENT_EVAL_MODEL (and AGENT_EVAL_BASE_URL / AGENT_EVAL_API_KEY as needed)")
         return cls(

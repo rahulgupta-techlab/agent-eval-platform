@@ -3,6 +3,8 @@
     python -m agent_eval validate [tasks_dir]
     python -m agent_eval run [tasks_dir] [--llm fake|openai] [--task ID ...] [--out FILE]
     python -m agent_eval score TRACE [--tasks DIR] [--prices FILE] [--json FILE]
+    python -m agent_eval compare [CONFIG] [--tasks DIR] [--run NAME ...] [--out-dir DIR]
+                                 [--baseline FILE] [--threshold X]
 """
 
 from __future__ import annotations
@@ -12,6 +14,16 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from pydantic import ValidationError
+
+from agent_eval.compare import (
+    check_regression,
+    compare,
+    load_comparison,
+    load_config,
+    markdown_table,
+    write_results,
+)
 from agent_eval.llm import FakeLLM, LLMError, OpenAIClient
 from agent_eval.metrics import PRICES_FILE, load_prices, score_run, summary
 from agent_eval.runner import LLMAgent, load_traces, run
@@ -71,6 +83,44 @@ def cmd_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    try:
+        config = load_config(args.config)
+        baseline = load_comparison(args.baseline) if args.baseline else None
+    except (OSError, ValueError, ValidationError) as e:
+        print(e, file=sys.stderr)
+        return 2
+    if args.run:
+        unknown = set(args.run) - {r.name for r in config.runs}
+        if unknown:
+            print(f"unknown runs: {', '.join(sorted(unknown))}", file=sys.stderr)
+            return 2
+        config.runs = [r for r in config.runs if r.name in args.run]
+    try:
+        comparison = compare(config, load_tasks(args.tasks), load_prices(args.prices), out_dir=args.out_dir)
+    except LLMError as e:
+        print(e, file=sys.stderr)
+        return 2
+    print(markdown_table(comparison))
+    if any(r.llm == "fake" for r in comparison.runs):
+        print("note: fake runs are scripted, so their results say nothing about a model")
+    md, js = write_results(comparison, args.out_dir)
+    print(f"results: {md}, {js}")
+
+    status = 1 if any(r.metrics.failures.get("llm_error") for r in comparison.runs) else 0
+    if baseline is not None:
+        checks = check_regression(comparison, baseline, args.threshold)
+        for c in checks:
+            print(c.line())
+        if not checks:
+            print("regression check: no run in common with the baseline", file=sys.stderr)
+            return 1
+        if any(c.regressed for c in checks):
+            print(f"regression: success dropped by more than {args.threshold:.1%}")
+            return 1
+    return status
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agent_eval")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -92,6 +142,16 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--prices", type=Path, default=PRICES_FILE, help="price table (USD per 1M tokens)")
     s.add_argument("--json", type=Path, help="also write per-task and run metrics as JSON")
     s.set_defaults(func=cmd_score)
+
+    c = sub.add_parser("compare", help="run several model x prompt configs on the same tasks and compare")
+    c.add_argument("config", nargs="?", type=Path, default=Path("config") / "compare.yaml")
+    c.add_argument("--tasks", type=Path, default=Path("tasks"))
+    c.add_argument("--run", action="append", metavar="NAME", help="only this run from the config (repeatable)")
+    c.add_argument("--out-dir", type=Path, default=Path("runs") / "compare", help="traces and results")
+    c.add_argument("--prices", type=Path, default=PRICES_FILE, help="price table (USD per 1M tokens)")
+    c.add_argument("--baseline", type=Path, help="saved results.json to check for regressions against")
+    c.add_argument("--threshold", type=float, default=0.05, help="allowed drop in success rate (default 0.05)")
+    c.set_defaults(func=cmd_compare)
 
     args = parser.parse_args(argv)
     return args.func(args)

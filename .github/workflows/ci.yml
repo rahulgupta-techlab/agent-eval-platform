@@ -18,4 +18,5 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: python -m agent_eval validate
       - run: python -m agent_eval run
+      - run: python -m agent_eval compare --baseline baselines/compare-fake.json
       - run: pytest -q

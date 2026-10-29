@@ -12,7 +12,7 @@ task success, tool-call accuracy, latency, token cost and failure classes, and c
 - [x] Runner that executes an agent on every task and records each step
 - [x] Metrics: success rate, tool-call accuracy, latency p50/p95, cost per task
 - [x] Failure classes: wrong tool, bad arguments, loops and timeouts, ungrounded answers
-- [ ] Model and prompt comparison with regression checks
+- [x] Model and prompt comparison with regression checks
 - [ ] FastAPI service and HTML report
 - [ ] Docker Compose and CI
 
@@ -148,3 +148,52 @@ them (`failures` per run, `failure` per task). With the scripted perfect `FakeLL
 failures, so that run only shows the plumbing; the tests in
 [tests/test_failures.py](tests/test_failures.py) script one failing agent per class. Real-model
 failure counts come from the same `run --llm openai` command as the metrics above.
+
+## Comparing models and prompts
+
+`compare` runs several configs (model x system prompt) on the same tasks, saves a trace per run
+in `--out-dir`, and writes the results as `results.md` and `results.json`. Configs are YAML
+([config/compare.yaml](config/compare.yaml), [config/compare.openai.yaml](config/compare.openai.yaml)):
+
+```yaml
+prompts:
+  terse: You answer questions about an outdoor-gear shop. ...   # `default` is the built-in prompt
+runs:
+  - {name: gpt-4o-mini-default, llm: openai, model: gpt-4o-mini}
+  - {name: gpt-4o-mini-terse, llm: openai, model: gpt-4o-mini, prompt: terse}
+```
+
+```bash
+python -m agent_eval compare                                   # the two scripted fake runs
+python -m agent_eval compare config/compare.openai.yaml --out-dir runs/openai
+python -m agent_eval compare config/compare.openai.yaml --run gpt-4o-mini-terse   # one run only
+```
+
+Any `results.json` can serve as a baseline. With `--baseline`, each run is compared with the
+baseline run of the same name on the tasks both ran, and the command exits with 1 if a success
+rate dropped by more than `--threshold` (default 0.05, i.e. 5 points). It also lists the tasks
+that passed before and fail now.
+
+```bash
+python -m agent_eval compare config/compare.openai.yaml --out-dir runs/openai \
+    --baseline baselines/openai.json --threshold 0.05
+```
+
+CI runs the fake configs against [baselines/compare-fake.json](baselines/compare-fake.json) on
+every push, so a change to the runner or the scoring that alters any result fails the build.
+Measured with the scripted `FakeLLM` (not a real model): `fake-gives-up` is the perfect script
+except that every 5th task answers at once without calling a tool. It exists to show that the
+comparison and the regression check catch a worse agent; tokens are estimates.
+
+| Run | Success | Right tool | Right tool and args | Steps | Tokens in/out | Failures |
+|-----|--------:|-----------:|--------------------:|------:|--------------:|----------|
+| `fake-perfect` (scripted) | 30/30 | 100% | 100% | 2.53 | 1208/98 (estimated) | - |
+| `fake-gives-up` (scripted) | 24/30 | 83% | 83% | 2.27 | 1062/83 (estimated) | ungrounded_answer 5, should_have_refused 1 |
+
+Real model results: run `python -m agent_eval compare config/compare.openai.yaml --out-dir runs/openai`
+with `AGENT_EVAL_API_KEY` (and `AGENT_EVAL_BASE_URL` for a non-OpenAI endpoint) set, and paste
+`runs/openai/results.md` here.
+
+| Run | Model | Prompt | Success | Right tool | Right tool and args | Latency p50/p95 | Cost per task |
+|-----|-------|--------|--------:|-----------:|--------------------:|----------------:|--------------:|
+| | | | | | | | |

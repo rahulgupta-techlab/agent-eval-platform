@@ -1,0 +1,17 @@
+# Model x prompt comparison on an OpenAI-compatible endpoint. The model comes from each
+# run; AGENT_EVAL_BASE_URL and AGENT_EVAL_API_KEY from the environment.
+#
+#   python -m agent_eval compare config/compare.openai.yaml --out-dir runs/openai
+
+prompts:
+  # `default` is the runner's built-in SYSTEM_PROMPT
+  terse: >-
+    You answer questions about an outdoor-gear shop. Call the tools to get facts; never
+    answer from memory. The shop data is read-only. If the data does not contain the
+    answer, say so. Give the final answer in one sentence.
+
+runs:
+  - {name: gpt-4o-mini-default, llm: openai, model: gpt-4o-mini}
+  - {name: gpt-4o-mini-terse, llm: openai, model: gpt-4o-mini, prompt: terse}
+  - {name: gpt-4o-default, llm: openai, model: gpt-4o}
+  - {name: gpt-4o-terse, llm: openai, model: gpt-4o, prompt: terse}

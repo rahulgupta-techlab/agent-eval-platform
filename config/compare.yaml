@@ -1,0 +1,8 @@
+# Runs for `python -m agent_eval compare`. These two use the scripted FakeLLM, so they need
+# no API key and give the same results every time: they test the comparison and the
+# regression check, not a model. Real-model runs are in compare.openai.yaml.
+
+runs:
+  - {name: fake-perfect, llm: fake}
+  # gives up without calling a tool on every 5th task (6 of 30)
+  - {name: fake-gives-up, llm: fake, give_up_every: 5}
