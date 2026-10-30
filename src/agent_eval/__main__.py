@@ -5,6 +5,7 @@
     python -m agent_eval score TRACE [--tasks DIR] [--prices FILE] [--json FILE]
     python -m agent_eval compare [CONFIG] [--tasks DIR] [--run NAME ...] [--out-dir DIR]
                                  [--baseline FILE] [--threshold X]
+    python -m agent_eval serve [--tasks DIR] [--runs-dir DIR] [--host HOST] [--port PORT]
 """
 
 from __future__ import annotations
@@ -121,6 +122,15 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return status
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from agent_eval.service import create_app
+
+    uvicorn.run(create_app(args.tasks, args.runs_dir, args.prices), host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agent_eval")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -152,6 +162,14 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--baseline", type=Path, help="saved results.json to check for regressions against")
     c.add_argument("--threshold", type=float, default=0.05, help="allowed drop in success rate (default 0.05)")
     c.set_defaults(func=cmd_compare)
+
+    sv = sub.add_parser("serve", help="HTTP API: POST /runs, GET /runs/{id}, GET /runs/{id}/report")
+    sv.add_argument("--tasks", type=Path, default=Path("tasks"))
+    sv.add_argument("--runs-dir", type=Path, default=Path("runs") / "service", help="where traces are saved")
+    sv.add_argument("--prices", type=Path, default=PRICES_FILE, help="price table (USD per 1M tokens)")
+    sv.add_argument("--host", default="127.0.0.1")
+    sv.add_argument("--port", type=int, default=8000)
+    sv.set_defaults(func=cmd_serve)
 
     args = parser.parse_args(argv)
     return args.func(args)

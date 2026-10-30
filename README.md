@@ -13,7 +13,7 @@ task success, tool-call accuracy, latency, token cost and failure classes, and c
 - [x] Metrics: success rate, tool-call accuracy, latency p50/p95, cost per task
 - [x] Failure classes: wrong tool, bad arguments, loops and timeouts, ungrounded answers
 - [x] Model and prompt comparison with regression checks
-- [ ] FastAPI service and HTML report
+- [x] FastAPI service and HTML report
 - [ ] Docker Compose and CI
 
 ## The environment
@@ -197,3 +197,31 @@ with `AGENT_EVAL_API_KEY` (and `AGENT_EVAL_BASE_URL` for a non-OpenAI endpoint) 
 | Run | Model | Prompt | Success | Right tool | Right tool and args | Latency p50/p95 | Cost per task |
 |-----|-------|--------|--------:|-----------:|--------------------:|----------------:|--------------:|
 | | | | | | | | |
+
+## HTTP service
+
+`serve` starts a FastAPI app ([service.py](src/agent_eval/service.py)) that runs one config at a
+time in the background and keeps the results in memory. Traces are saved to `runs/service/<id>.jsonl`.
+
+| Endpoint | What it does |
+|----------|--------------|
+| `POST /runs` | Start a run. Body: `name`, `llm` (`fake` or `openai`), `model`, `system_prompt`, `task_ids` (default: all), `give_up_every` (fake only). Returns `202` with the run id. |
+| `GET /runs` | Every run, newest first, without metrics. |
+| `GET /runs/{id}` | Status (`queued`, `running`, `done`, `failed`), the error if it failed, and the full metrics once it is done. |
+| `GET /runs/{id}/report` | HTML report: the metrics, then every task with its prompt, answer, tool calls and failure class. `409` until the run is done. |
+
+```bash
+python -m agent_eval serve --port 8000
+curl -X POST localhost:8000/runs -H 'content-type: application/json' \
+    -d '{"name": "fake-gives-up", "give_up_every": 5}'          # {"id": "537616dd3b5a", "status": "queued", ...}
+curl localhost:8000/runs/537616dd3b5a                          # status and metrics
+open http://localhost:8000/runs/537616dd3b5a/report            # HTML report
+
+# a real model: the same AGENT_EVAL_BASE_URL / AGENT_EVAL_API_KEY as above
+curl -X POST localhost:8000/runs -H 'content-type: application/json' \
+    -d '{"name": "mini", "llm": "openai", "model": "gpt-4o-mini"}'
+```
+
+The tests ([tests/test_service.py](tests/test_service.py)) drive it with FastAPI's `TestClient`
+and the scripted `FakeLLM`; a `fake-gives-up` run through the API gives the same 24/30 as `compare`.
+
